@@ -1,0 +1,14 @@
+services:
+  quantum-python:
+    build:
+      context: ./PythonApi/
+    container_name: quantum-python
+
+  razor-app:
+    build:
+      context: ./RazorApp/
+    ports:
+      - "8080:8080"
+    depends_on:
+      - quantum-python
+    container_name: razor-app

@@ -1,0 +1,174 @@
+﻿@page
+@model QuantumFactoringDemo.Pages.IndexModel
+@{
+    ViewData["Title"] = "Quantum vs Classical Factoring Demo";
+}
+
+<div class="container mt-5">
+    <h1 class="mb-4">Factorization Performance Comparison</h1>
+    
+    <form method="post" class="mb-5">
+        <div class="form-group">
+            <label for="numberInput" class="h4">Enter a number to factor:</label>
+            <input type="number" 
+                   id="numberInput" 
+                   name="number" 
+                   class="form-control form-control-lg" 
+                   min="2" 
+                   required
+                   placeholder="Example: 15, 21, 33...">
+            <small class="form-text text-muted">
+                Note: Use numbers between 2 and 100 for best results with the quantum simulator
+            </small>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg mt-3">
+            Factor with Both Methods
+        </button>
+    </form>
+
+    @if (Model.QuantumResult != null || Model.ClassicalResult != null)
+    {
+        <div class="row">
+            <!-- Quantum Results -->
+            <div class="col-md-6 mb-4">
+                <div class="card border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="card-title mb-0">Quantum Results (Shor's Algorithm)</h3>
+                    </div>
+                    <div class="card-body">
+                        @if (Model.QuantumResult != null)
+                        {
+                            <div class="alert alert-success">
+                                <h4 class="alert-heading">Factors Found!</h4>
+                                <p class="mb-0">@ParseQuantumResult(Model.QuantumResult)</p>
+                            </div>
+                            <p class="text-muted">
+                                Execution Time: @Model.QuantumTime.ToString("0.0000") seconds
+                            </p>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning">
+                                No quantum factors found
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Classical Results -->
+            <div class="col-md-6 mb-4">
+                <div class="card border-secondary">
+                    <div class="card-header bg-secondary text-white">
+                        <h3 class="card-title mb-0">Classical Results (Brute Force)</h3>
+                    </div>
+                    <div class="card-body">
+                        @if (Model.ClassicalResult.HasValue)
+                        {
+                            <div class="alert alert-info">
+                                <h4 class="alert-heading">Factor Found!</h4>
+                                <p class="mb-0">
+                                    @Model.ClassicalResult.Value × @(Model.ClassicalResult.HasValue ? 
+                                        (Model.ClassicalResult.Value != 0 ? 
+                                            (Model.Number / Model.ClassicalResult.Value).ToString() : 
+                                            "N/A") : 
+                                        "N/A")
+                                </p>
+                            </div>
+                            <p class="text-muted">
+                                Execution Time: @Model.ClassicalTime.ToString("0.0000") seconds
+                            </p>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning">
+                                No classical factors found (might be prime)
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Chart -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">Performance Comparison</h4>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="timeChart" style="max-height: 400px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            @if (Model.QuantumResult != null && Model.ClassicalResult != null)
+            {
+                <text>
+                    const ctx = document.getElementById('timeChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Quantum', 'Classical'],
+                            datasets: [{
+                                label: 'Execution Time (seconds)',
+                                data: [@Model.QuantumTime, @Model.ClassicalTime],
+                                backgroundColor: [
+                                    'rgba(54, 162, 235, 0.5)',
+                                    'rgba(255, 99, 132, 0.5)'
+                                ],
+                                borderColor: [
+                                    'rgb(54, 162, 235)',
+                                    'rgb(255, 99, 132)'
+                                ],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Seconds'
+                                    }
+                                }
+                            }
+                        }
+                    });
+                </text>
+            }
+        });
+    </script>
+}
+
+@functions {
+    private string ParseQuantumResult(string result)
+    {
+        // Convert "(15, 3)" string to "15 × 5"
+        try
+        {
+            var clean = result.Trim('(', ')').Split(',');
+            if (clean.Length == 2 && 
+                int.TryParse(clean[0], out int factor1) && 
+                int.TryParse(clean[1], out int factor2))
+            {
+                return $"{factor1} × {factor2}";
+            }
+            return result;
+        }
+        catch
+        {
+            return result;
+        }
+    }
+}
