@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install the Azure Quantum Python SDK
 RUN pip install --upgrade pip
-RUN pip install flask qsharp
+RUN pip install flask qsharp azure-quantum
 
 # Set the working directory
 WORKDIR /app

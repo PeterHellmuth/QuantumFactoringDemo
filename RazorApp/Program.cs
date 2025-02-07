@@ -1,7 +1,12 @@
+using Microsoft.AspNetCore.DataProtection;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(@"/keys"))
+    .SetApplicationName("QuantumFactoringDemo");
 
 var app = builder.Build();
 

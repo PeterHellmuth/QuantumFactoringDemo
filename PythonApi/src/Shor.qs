@@ -15,7 +15,6 @@ namespace Shor {
     //
     // Output
     // Pair of numbers p > 1 and q > 1 such that p⋅q = `number`
-
     operation FactorSemiprimeInteger(number : Int) : (Int, Int) {
         // First check the most trivial case (the provided number is even).
         if number % 2 == 0 {
