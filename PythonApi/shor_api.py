@@ -21,6 +21,8 @@ def factor():
         })
     except Exception as e:
         app.logger.error(f"Error processing request: {e}")
+        if "Failed to find factors" in str(e):
+            return jsonify({"error": "The number is prime and cannot be factored."}), 400
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':

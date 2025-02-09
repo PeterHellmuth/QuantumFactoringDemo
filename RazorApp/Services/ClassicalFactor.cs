@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 public static class ClassicalFactor
 {
-    public static (List<int> factors, double time) Factor(int number)
+    public static (List<int> factors, double time, bool isPrime) Factor(int number)
     {
         var stopwatch = Stopwatch.StartNew();
         var factors = new List<int>();
@@ -33,6 +33,7 @@ public static class ClassicalFactor
         }
 
         stopwatch.Stop();
-        return (factors, stopwatch.Elapsed.TotalSeconds);
+        bool isPrime = factors.Count == 1 && factors[0] == number;
+        return (factors, stopwatch.Elapsed.TotalSeconds, isPrime);
     }
 }
