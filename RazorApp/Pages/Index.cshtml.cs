@@ -5,6 +5,17 @@ using System.Diagnostics;
 
 namespace QuantumFactoringDemo.Pages;
 
+public class FactoringDataPoint
+{
+    public int Bits { get; set; }          // X-axis: Input size in bits
+    public int Qubits { get; set; }        // Alternative X-axis for quantum
+    public double SimulatedQuantumTime { get; set; }
+    public double ClassicalTime { get; set; }
+    public double TheoreticalQuantumTime { get; set; }
+    public double TheoreticalClassicalTime { get; set; }
+}
+
+
 public class IndexModel : PageModel
 {
     private readonly ILogger<IndexModel> _logger;
@@ -12,13 +23,29 @@ public class IndexModel : PageModel
     public IndexModel(ILogger<IndexModel> logger)
     {
         _logger = logger;
+
+            // Precompute theoretical values
+        foreach (var bits in new[] { 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 })
+        {
+            DataPoints.Add(new FactoringDataPoint
+            {
+                Bits = bits,
+                Qubits = 2 * bits,
+                TheoreticalQuantumTime = Math.Pow(bits, 3),
+                TheoreticalClassicalTime = Math.Exp(1.9 * Math.Pow(bits, 1/3.0))
+            });
+        }
     }
 
     public string? QuantumResult { get; set; }
     public double QuantumTime { get; set; }
     public string? ClassicalResult { get; set; }
     public double ClassicalTime { get; set; }
+
+    public List<FactoringDataPoint> DataPoints { get; set; } = new();
     public int Number { get; set; }
+
+    public List<(string Label, double SimulatedQuantumTime, double RealQuantumTime, double ClassicalTime)> FactoringResults { get; set; } = new();
 
     public async Task OnPostAsync(int number)
     {
@@ -37,7 +64,9 @@ public class IndexModel : PageModel
                 {
                     QuantumResult = "The number is prime and cannot be factored.";
                     QuantumTime = stopwatch.Elapsed.TotalSeconds;
-                } else{
+                }
+                else
+                {
                     if (!response.IsSuccessStatusCode)
                     {
                         _logger.LogError("Failed to call Python API. Status code: {StatusCode}", response.StatusCode);
@@ -82,6 +111,19 @@ public class IndexModel : PageModel
         {
             ClassicalResult = $"({string.Join(", ", factors)})";
         }
-    }
 
+        // Add the results to the list for charting
+        FactoringResults.Add((number.ToString(), QuantumTime, QuantumTime, ClassicalTime));
+
+        var bits = (int)Math.Log2(number) + 1;
+        DataPoints.Add(new FactoringDataPoint
+        {
+            Bits = bits,
+            Qubits = 2 * bits,  // Shor's algorithm requires ~2n qubits for n-bit number
+            SimulatedQuantumTime = QuantumTime,
+            ClassicalTime = ClassicalTime,
+            TheoreticalQuantumTime = Math.Pow(bits, 3),       // O((log N)^3)
+            TheoreticalClassicalTime = Math.Exp(1.9 * Math.Pow(bits, 1/3.0)) // GNFS
+        });
+    }
 }
