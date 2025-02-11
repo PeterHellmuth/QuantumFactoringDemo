@@ -13,12 +13,18 @@ def factor():
     number = data['number']
     
     try:
-        (p, q) = FactorSemiprimeInteger(int(number))
-        app.logger.debug(f"Response data: {(p, q)}")
-        return jsonify({
-            "factors": [p, q],
-            "product": p * q
-        })
+        attempts = 0
+        while attempts < 50:
+            attempts += 1
+            app.logger.debug(f"Factorizing {number}, attempt {attempts}.")
+            (p, q) = FactorSemiprimeInteger(int(number))
+            if p * q == number:
+                app.logger.debug(f"Response data: {(p, q)}")
+                return jsonify({
+                    "factors": [p, q],
+                    "product": p * q
+                })
+            app.logger.debug(f"Attempt {attempts} did not yield valid factors. Trying again.")
     except Exception as e:
         app.logger.error(f"Error processing request: {e}")
         if "Failed to find factors" in str(e):

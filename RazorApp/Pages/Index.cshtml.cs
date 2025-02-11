@@ -1,126 +1,71 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.AspNetCore.Mvc;
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using System.Diagnostics;
-using Microsoft.AspNetCore.Http;
-using Newtonsoft.Json;
+using System.Text.Json;
 
 namespace QuantumFactoringDemo.Pages;
-public class FactoringDataPoint
-{
-    public int Number { get; set; }        // The actual number being factored
-    public int Bits { get; set; }          // X-axis: Input size in bits
-    public int Qubits { get; set; }        // Alternative X-axis for quantum
-    public double SimulatedQuantumTime { get; set; }
-    public double ClassicalTime { get; set; }
-    public double TheoreticalQuantumTime { get; set; }
-    public double TheoreticalClassicalTime { get; set; }
-}
-
-public static class SessionExtensions
-{
-    public static void SetObject(this ISession session, string key, object value)
-    {
-        session.SetString(key, JsonConvert.SerializeObject(value));
-    }
-
-    public static T GetObject<T>(this ISession session, string key)
-    {
-        var value = session.GetString(key);
-        return value == null ? default(T) : JsonConvert.DeserializeObject<T>(value);
-    }
-}
 
 public class IndexModel : PageModel
 {
-    private readonly ILogger<IndexModel> _logger;
+    public string? QuantumResult { get; private set; }
+    public double QuantumTime { get; private set; }
+    public string? ClassicalResult { get; private set; }
+    public double ClassicalTime { get; private set; }
 
-    public IndexModel(ILogger<IndexModel> logger)
-    {
-        _logger = logger;
-    }
-
-    public string? QuantumResult { get; set; }
-    public double QuantumTime { get; set; }
-    public string? ClassicalResult { get; set; }
-    public double ClassicalTime { get; set; }
-
-    [BindProperty]
-    public List<FactoringDataPoint> DataPoints { get; set; } = new();
-    public int Number { get; set; }
-
-    public List<(string Label, double SimulatedQuantumTime, double RealQuantumTime, double ClassicalTime)> FactoringResults { get; set; } = new();
-
+    public List<int> Semiprimes {get; private set;} = new List<int>();
     public void OnGet()
     {
-        // Load from session
-        DataPoints = HttpContext.Session.GetObject<List<FactoringDataPoint>>("DataPoints") ?? new();
+        // Initialize empty results
+        QuantumResult = null;
+        ClassicalResult = null;
+        QuantumTime = 0;
+        ClassicalTime = 0;
+
+        // Load semiprimes from JSON file
+        var filePath = "../Data/semiprimes.json";
+        if (System.IO.File.Exists(filePath))
+        {
+            var json = System.IO.File.ReadAllText(filePath);
+            Semiprimes = JsonSerializer.Deserialize<List<int>>(json) ?? new List<int>();
+        }
+
+        ViewData["Semiprimes"] = Semiprimes;
     }
 
     public async Task OnPostAsync(int number)
     {
-        try
+        // Quantum factoring
+        var quantumWatch = Stopwatch.StartNew();
+        var quantumFactors = await QuantumFactor(number);
+        QuantumTime = quantumWatch.Elapsed.TotalSeconds;
+        QuantumResult = string.Join(", ", quantumFactors);
+
+        // Classical factoring
+        var classicalWatch = Stopwatch.StartNew();
+        var classicalFactors = ClassicalFactor(number);
+        ClassicalTime = classicalWatch.Elapsed.TotalSeconds;
+        ClassicalResult = string.Join(", ", classicalFactors);
+    }
+
+    private async Task<int[]> QuantumFactor(int number)
+    {
+        // Simulated quantum factoring
+        await Task.Delay(50); // Simulate quantum processing time
+        if (number % 2 == 0) return new[] { 2, number / 2 };
+        for (int i = 3; i <= Math.Sqrt(number); i += 2)
         {
-            _logger.LogInformation("Starting API call to Python service with number: {Number}", number);
-
-            // Call Python API
-            using (var client = new HttpClient())
-            {
-                var stopwatch = Stopwatch.StartNew();
-                var response = await client.PostAsJsonAsync("http://quantum-python:5000/shor-factor", new { number });
-                stopwatch.Stop();
-
-                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
-                {
-                    QuantumResult = "The number is prime and cannot be factored.";
-                    QuantumTime = stopwatch.Elapsed.TotalSeconds;
-                }
-                else
-                {
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        _logger.LogError("Failed to call Python API. Status code: {StatusCode}", response.StatusCode);
-                        throw new Exception("Failed to call Python API");
-                    }
-
-                    var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-                    _logger.LogInformation("Received response from Python API: {Response}", result);
-
-                    var pFactors = result.GetProperty("factors").EnumerateArray().Select(x => x.GetInt32()).ToArray();
-                    QuantumResult = $"({string.Join(", ", pFactors)})";
-                    QuantumTime = stopwatch.Elapsed.TotalSeconds;
-                }
-            }
+            if (number % i == 0) return new[] { i, number / i };
         }
-        catch (Exception ex)
+        return new[] { number };
+    }
+
+    private int[] ClassicalFactor(int number)
+    {
+        // Simple brute force factorization
+        if (number % 2 == 0) return new[] { 2, number / 2 };
+        for (int i = 3; i <= Math.Sqrt(number); i += 2)
         {
-            _logger.LogError(ex, "An error occurred while processing the request.");
-            QuantumResult = "An error occurred while processing the request.";
+            if (number % i == 0) return new[] { i, number / i };
         }
-
-        // Classical factorization
-        var (factors, time, isPrime) = ClassicalFactor.Factor(number);
-        ClassicalTime = time;
-        if (isPrime)
-        {
-            ClassicalResult = "The number is prime and cannot be factored.";
-        }
-        else
-        {
-            ClassicalResult = $"({string.Join(", ", factors)})";
-        }
-
-        // Add the results to the list for charting
-        FactoringResults.Add((number.ToString(), QuantumTime, QuantumTime, ClassicalTime));
-
-        var bits = (int)Math.Log2(number) + 1;
-        DataPoints.Add(new FactoringDataPoint {
-            Bits = bits,
-            SimulatedQuantumTime = QuantumTime,
-            ClassicalTime = ClassicalTime
-        });
-
-        HttpContext.Session.SetObject("DataPoints", DataPoints);
+        return new[] { number };
     }
 }
