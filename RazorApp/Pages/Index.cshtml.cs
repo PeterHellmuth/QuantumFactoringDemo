@@ -1,12 +1,15 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using Microsoft.AspNetCore.Http;
+using Newtonsoft.Json;
 
 namespace QuantumFactoringDemo.Pages;
-
 public class FactoringDataPoint
 {
+    public int Number { get; set; }        // The actual number being factored
     public int Bits { get; set; }          // X-axis: Input size in bits
     public int Qubits { get; set; }        // Alternative X-axis for quantum
     public double SimulatedQuantumTime { get; set; }
@@ -15,6 +18,19 @@ public class FactoringDataPoint
     public double TheoreticalClassicalTime { get; set; }
 }
 
+public static class SessionExtensions
+{
+    public static void SetObject(this ISession session, string key, object value)
+    {
+        session.SetString(key, JsonConvert.SerializeObject(value));
+    }
+
+    public static T GetObject<T>(this ISession session, string key)
+    {
+        var value = session.GetString(key);
+        return value == null ? default(T) : JsonConvert.DeserializeObject<T>(value);
+    }
+}
 
 public class IndexModel : PageModel
 {
@@ -23,18 +39,6 @@ public class IndexModel : PageModel
     public IndexModel(ILogger<IndexModel> logger)
     {
         _logger = logger;
-
-            // Precompute theoretical values
-        foreach (var bits in new[] { 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 })
-        {
-            DataPoints.Add(new FactoringDataPoint
-            {
-                Bits = bits,
-                Qubits = 2 * bits,
-                TheoreticalQuantumTime = Math.Pow(bits, 3),
-                TheoreticalClassicalTime = Math.Exp(1.9 * Math.Pow(bits, 1/3.0))
-            });
-        }
     }
 
     public string? QuantumResult { get; set; }
@@ -42,10 +46,17 @@ public class IndexModel : PageModel
     public string? ClassicalResult { get; set; }
     public double ClassicalTime { get; set; }
 
+    [BindProperty]
     public List<FactoringDataPoint> DataPoints { get; set; } = new();
     public int Number { get; set; }
 
     public List<(string Label, double SimulatedQuantumTime, double RealQuantumTime, double ClassicalTime)> FactoringResults { get; set; } = new();
+
+    public void OnGet()
+    {
+        // Load from session
+        DataPoints = HttpContext.Session.GetObject<List<FactoringDataPoint>>("DataPoints") ?? new();
+    }
 
     public async Task OnPostAsync(int number)
     {
@@ -72,25 +83,13 @@ public class IndexModel : PageModel
                         _logger.LogError("Failed to call Python API. Status code: {StatusCode}", response.StatusCode);
                         throw new Exception("Failed to call Python API");
                     }
-                    var result = await response.Content.ReadFromJsonAsync<JsonElement>();
 
+                    var result = await response.Content.ReadFromJsonAsync<JsonElement>();
                     _logger.LogInformation("Received response from Python API: {Response}", result);
 
-                    if (result.TryGetProperty("factors", out var qFactors) && qFactors.GetArrayLength() >= 2)
-                    {
-                        QuantumResult = $"({string.Join(", ", qFactors.EnumerateArray().Select(f => f.GetInt32()))})";
-                        QuantumTime = stopwatch.Elapsed.TotalSeconds;
-                    }
-                    else if (result.TryGetProperty("error", out var error))
-                    {
-                        QuantumResult = error.GetString();
-                        QuantumTime = stopwatch.Elapsed.TotalSeconds;
-                    }
-                    else
-                    {
-                        _logger.LogError("Invalid response from Python API: {Response}", result);
-                        throw new Exception("Invalid response from Python API");
-                    }
+                    var pFactors = result.GetProperty("factors").EnumerateArray().Select(x => x.GetInt32()).ToArray();
+                    QuantumResult = $"({string.Join(", ", pFactors)})";
+                    QuantumTime = stopwatch.Elapsed.TotalSeconds;
                 }
             }
         }
@@ -116,14 +115,12 @@ public class IndexModel : PageModel
         FactoringResults.Add((number.ToString(), QuantumTime, QuantumTime, ClassicalTime));
 
         var bits = (int)Math.Log2(number) + 1;
-        DataPoints.Add(new FactoringDataPoint
-        {
+        DataPoints.Add(new FactoringDataPoint {
             Bits = bits,
-            Qubits = 2 * bits,  // Shor's algorithm requires ~2n qubits for n-bit number
             SimulatedQuantumTime = QuantumTime,
-            ClassicalTime = ClassicalTime,
-            TheoreticalQuantumTime = Math.Pow(bits, 3),       // O((log N)^3)
-            TheoreticalClassicalTime = Math.Exp(1.9 * Math.Pow(bits, 1/3.0)) // GNFS
+            ClassicalTime = ClassicalTime
         });
+
+        HttpContext.Session.SetObject("DataPoints", DataPoints);
     }
 }

@@ -28,20 +28,6 @@
                         <p class="mb-0">Time: @Model.QuantumTime seconds</p>
                     </div>
                 }
-
-                <h5 class="mt-3">Current Technology</h5>
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item">Infeasible</li>
-                    <li class="list-group-item">~4M qubits needed</li>
-                    <li class="list-group-item">1% error rate</li>
-                </ul>
-
-                <h5 class="mt-3">Future Projection</h5>
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item">~24 hours</li>
-                    <li class="list-group-item">~20K qubits</li>
-                    <li class="list-group-item">0.1% error rate</li>
-                </ul>
             </div>
         </div>
     </div>
@@ -59,12 +45,6 @@
                         <p class="mb-0">Time: @Model.ClassicalTime seconds</p>
                     </div>
                 }
-
-                <h5 class="mt-3">Current Technology</h5>
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item">~10³⁰ years (GNFS)</li>
-                    <li class="list-group-item">Most efficient algorithm</li>
-                </ul>
             </div>
         </div>
     </div>
@@ -75,45 +55,51 @@
         <canvas id="factoringChart"></canvas>
     </div>
 </div>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Get canvas context
         const ctx = document.getElementById('factoringChart').getContext('2d');
+        
+        // Initialize with empty data
+        let chart = null;
+        
+        // Load existing data from localStorage
+        let storedData = JSON.parse(localStorage.getItem('factoringData') || '{"labels":[],"datasets":[]}');
 
         // Chart configuration
         const config = {
             type: 'line',
             data: {
-                labels: [],
+                labels: storedData.labels,
                 datasets: [
                     {
-                        label: 'Simulated Quantum',
-                        data: [],
-                        borderColor: 'rgb(75, 192, 192)',
-                        borderWidth: 2,
-                        pointRadius: 5
+                        label: 'Simulated Quantum (Actual)',
+                        data: storedData.datasets[0]?.data || [],
+                        borderColor: '#4CAF50', // Green
+                        borderWidth: 3,
+                        pointRadius: 6
                     },
                     {
-                        label: 'Classical',
-                        data: [],
-                        borderColor: 'rgb(255, 99, 132)',
-                        borderWidth: 2,
-                        pointRadius: 5
+                        label: 'Classical Brute Force (Actual)',
+                        data: storedData.datasets[1]?.data || [],
+                        borderColor: '#F44336', // Red
+                        borderWidth: 3,
+                        pointRadius: 6
                     },
                     {
                         label: 'Theoretical Quantum (O(n³))',
                         data: [],
-                        borderColor: 'rgba(75, 192, 192, 0.5)',
-                        borderDash: [5, 5],
-                        borderWidth: 1
+                        borderColor: '#2196F3', // Blue
+                        borderWidth: 2,
+                        borderDash: [5, 5]
                     },
                     {
-                        label: 'Theoretical Classical (GNFS)',
+                        label: 'Theoretical Classical (O(2ⁿ))',
                         data: [],
-                        borderColor: 'rgba(255, 99, 132, 0.5)',
-                        borderDash: [5, 5],
-                        borderWidth: 1
+                        borderColor: '#FF9800', // Orange
+                        borderWidth: 2,
+                        borderDash: [5, 5]
                     }
                 ]
             },
@@ -123,65 +109,88 @@
                     tooltip: {
                         callbacks: {
                             label: (context) => {
-                                const label = context.dataset.label || '';
+                                const label = context.dataset.label;
                                 const value = context.parsed.y.toExponential(2);
                                 return `${label}: ${value} sec`;
                             }
                         }
                     }
                 },
-                interaction: {
-                    mode: 'nearest',
-                    intersect: false
-                },
                 scales: {
                     x: {
                         type: 'linear',
-                        title: {
-                            display: true,
-                            text: 'Input Size (bits)'
-                        }
+                        title: { 
+                            display: true, 
+                            text: 'Input Size (bits)',
+                            font: { size: 14 }
+                        },
+                        min: 4,
+                        max: 32 // Focus on 4-32 bits for demo
                     },
                     y: {
                         type: 'logarithmic',
-                        title: {
-                            display: true,
-                            text: 'Time (seconds)'
+                        title: { 
+                            display: true, 
+                            text: 'Time (seconds)',
+                            font: { size: 14 }
                         },
                         min: 1e-6,
-                        max: 1e30
+                        max: 100 // Show up to 100 seconds
                     }
                 }
             }
         };
 
         // Initialize chart
-        const chart = new Chart(ctx, config);
+        if (!chart) {
+            chart = new Chart(ctx, config);
+            addTheoreticalCurves(); // Add theoretical lines once
+        }
 
-        // Update chart with data
+        // Add theoretical complexity curves
+        function addTheoreticalCurves() {
+            const bitsRange = Array.from({length: 29}, (_, i) => i + 4); // 4-32 bits
+            bitsRange.forEach(bits => {
+                const n = Math.pow(2, bits);
+                
+                // Quantum: O((log N)³)
+                const quantumTime = Math.pow(bits, 3);
+                
+                // Classical: O(2^(n/2)) for brute force
+                const classicalTime = Math.pow(2, bits/2);
+                
+                chart.data.datasets[2].data.push(quantumTime);
+                chart.data.datasets[3].data.push(classicalTime);
+            });
+            chart.update();
+        }
+
+        // Update chart with new data
         @foreach (var point in Model.DataPoints)
         {
             <text>
             addDataPoint(
                 @point.Bits,
                 @point.SimulatedQuantumTime,
-                @point.ClassicalTime,
-                @point.TheoreticalQuantumTime,
-                @point.TheoreticalClassicalTime
+                @point.ClassicalTime
             );
             </text>
         }
 
-        function addDataPoint(bits, simulatedQuantum, classical, theoryQuantum, theoryClassical) {
-            // Add to labels only once per bits value
+        function addDataPoint(bits, quantumTime, classicalTime) {
+            // Prevent duplicates
             if (!chart.data.labels.includes(bits)) {
                 chart.data.labels.push(bits);
             }
             
-            chart.data.datasets[0].data.push(simulatedQuantum);
-            chart.data.datasets[1].data.push(classical);
-            chart.data.datasets[2].data.push(theoryQuantum);
-            chart.data.datasets[3].data.push(theoryClassical);
+            chart.data.datasets[0].data.push(quantumTime);
+            chart.data.datasets[1].data.push(classicalTime);
+            
+            // Save to localStorage
+            localStorage.setItem('factoringData', JSON.stringify({
+                labels: chart.data.labels,
+                datasets: chart.data.datasets.map(d => ({data: d.data}))
+            }));
             
             chart.update();
         }

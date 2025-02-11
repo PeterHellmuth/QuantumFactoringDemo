@@ -7,6 +7,9 @@ builder.Services.AddRazorPages();
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(@"/keys"))
     .SetApplicationName("QuantumFactoringDemo");
+builder.Services.AddSession(options =>{
+    options.IdleTimeout = TimeSpan.FromHours(2);
+});
 
 var app = builder.Build();
 
@@ -23,6 +26,7 @@ app.UseHttpsRedirection();
 app.UseRouting();
 
 app.UseAuthorization();
+app.UseSession();
 
 app.MapStaticAssets();
 app.MapRazorPages()
